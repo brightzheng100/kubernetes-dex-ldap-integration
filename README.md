@@ -74,7 +74,6 @@ kubectl create configmap ldap \
     --namespace ldap \
     --from-file=ldap/ldif
 
-#kubectl delete --namespace ldap -f ldap/ldap.yaml
 kubectl apply --namespace ldap -f ldap/ldap.yaml
 
 # Load ldif data after the OpenLDAP is ready
@@ -111,7 +110,6 @@ kubectl create secret tls dex-tls \
     --cert=tls-setup/_certs/dex.pem \
     --key=tls-setup/_certs/dex-key.pem
 
-#kubectl delete --namespace dex -f dex/dex.yaml
 kubectl apply --namespace dex -f dex/dex.yaml
 ```
 
@@ -250,7 +248,7 @@ no
 
 ## Kubernetes Authorization
 
-As you may have seen, authentication is deligated to `Dex` but authorization is handled by Kubernetes itself.
+As you may have seen, authentication is delegated to `Dex` but authorization is handled by Kubernetes itself.
 
 ```sh
 # Grant pod related permissions
@@ -303,7 +301,7 @@ Perfect!
 ## Clean Up
 
 ```sh
-# Delete the kinc cluster
+# Delete the kind cluster
 kind delete cluster
 
 # Delete the Socat proxy container
