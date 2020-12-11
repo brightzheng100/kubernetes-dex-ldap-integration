@@ -1,0 +1,26 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+# patch the generated kubeadm config with some extra settings
+kubeadmConfigPatches:
+- |
+  apiVersion: kubeadm.k8s.io/v1beta2
+  kind: ClusterConfiguration
+  metadata:
+    name: config
+  apiServer:
+    extraArgs:
+      # dex will be deployed in `dex` namespace, exposed by `dex` svc
+      oidc-issuer-url: https://dex.dex.svc:32000
+      # the client-id that is inbuilt in the example-app
+      oidc-client-id: example-app
+      # the CA that we generated for Dex
+      oidc-ca-file: /etc/ssl/certs/dex/ca.pem
+      # email will be used as the claim
+      oidc-username-claim: email
+      oidc-groups-claim: groups
+nodes:
+- role: control-plane
+  extraMounts:
+  - hostPath: "${PROJECT_ROOT}/tls-setup/_certs"
+    containerPath: /etc/ssl/certs/dex
+- role: worker

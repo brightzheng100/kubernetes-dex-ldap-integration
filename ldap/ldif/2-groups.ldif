@@ -1,0 +1,11 @@
+dn: cn=admins,ou=groups,dc=example,dc=org
+objectClass: groupOfNames
+cn: admins
+member: cn=admin1,ou=people,dc=example,dc=org
+member: cn=admin2,ou=people,dc=example,dc=org
+
+dn: cn=developers,ou=groups,dc=example,dc=org
+objectClass: groupOfNames
+cn: developers
+member: cn=developer1,ou=people,dc=example,dc=org
+member: cn=developer2,ou=people,dc=example,dc=org

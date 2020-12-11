@@ -1,0 +1,8 @@
+dn: ou=people,dc=example,dc=org
+ou: people
+description: All people in organisation
+objectclass: organizationalunit
+
+dn: ou=groups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: groups
