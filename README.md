@@ -4,7 +4,7 @@ A simple walk-through guide for how to integrate `Kubernetes` with `Dex` + `LDAP
 
 In this experiment, we're going to use these components:
 
-- Kubernetes v1.19.x, powered by [`kind` v0.9.0](https://kind.sigs.k8s.io/) -- well, you may try `minikube` which should work as well;
+- Kubernetes v1.19.x, powered by [`kind` v0.9.0](https://kind.sigs.k8s.io/);
 - [Dex](https://github.com/dexidp/dex) v2.10.x;
 - [OpenLDAP](https://www.openldap.org/) with [osixia/openldap:1.2.4](https://github.com/osixia/docker-openldap)
 
@@ -88,7 +88,7 @@ kubectl -n ldap exec $LDAP_POD -- \
     ldapsearch -LLL -x -H ldap://localhost:389 -D "cn=admin,dc=example,dc=org" -w adminpassword -b "ou=people,dc=example,dc=org" dn
 ```
 
-You should see some users have been created:
+You should see some users that have been created:
 
 ```
 dn: ou=people,dc=example,dc=org
@@ -184,8 +184,9 @@ $ echo "127.0.0.1 dex.dex.svc" | sudo tee -a /etc/hosts
 
 ## Logging into the cluster
 
-> Note: this `example-app` was copied from Dex's repo: `https://github.com/dexidp/dex/tree/master/examples/example-app`.
-> But I've enabled `go mod` support so the life of running it is much easier.
+> Note: 
+> 1. this `example-app` was copied from Dex's repo, [here](https://github.com/dexidp/dex/tree/master/examples/example-app`).
+> 2. I've enabled `go mod` support so the life of playing with it is much easier.
 
 ```sh
 cd "$( git rev-parse --show-toplevel )"
@@ -244,14 +245,15 @@ $ kubectl auth can-i --as admin1@example.org -n dex list pods
 no
 ```
 
-> Note: The good news is that Kubernetes has recognized the login user as `admin1@example.org` but still declined the access with `403 Forbidden`. Why? It's because we haven't granted any permission, by default, to a new user like `admin1@example.org`.
+The good news is that Kubernetes has recognized the login user as `admin1@example.org` but still declined the access with `403 Forbidden`.
+
+Why? It's because there is no permission, by default, granted to a new user like `admin1@example.org`.
 
 ## Kubernetes Authorization
 
 As you may have seen, authentication is delegated to `Dex` but authorization is handled by Kubernetes itself.
 
 ```sh
-# Grant pod related permissions
 $ kubectl apply -f manifests/authorization.yaml
 
 $ kubectl auth can-i --as admin1@example.org -n dex list pods
@@ -261,7 +263,7 @@ $ curl -k -s $APISERVER/api/v1/namespaces/dex/pods/ -H "Authorization: Bearer $B
 "dex-5f97556766-kcfvl"
 ```
 
-Yes! We now can access pods within `dex` namespace.
+Yes! We now can access pods within `dex` namespace, as per the permissions granted.
 
 ## Generate `kubeconfig`
 
