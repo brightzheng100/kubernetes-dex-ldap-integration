@@ -2,11 +2,13 @@
 
 A simple walk-through guide for how to integrate `Kubernetes` with `Dex` + `LDAP`.
 
-In this experiment, we're going to use these components:
+In this experiment, we're going to use these major components:
 
-- Kubernetes v1.19.x, powered by [`kind` v0.9.0](https://kind.sigs.k8s.io/);
-- [Dex](https://github.com/dexidp/dex) v2.10.x;
-- [OpenLDAP](https://www.openldap.org/) with [osixia/openldap:1.2.4](https://github.com/osixia/docker-openldap)
+- Kubernetes v1.21.x, powered by [`kind` v0.11.1](https://kind.sigs.k8s.io/);
+- [Dex](https://github.com/dexidp/dex) v2.30.x;
+- [OpenLDAP](https://www.openldap.org/) with [osixia/openldap:1.5.x](https://github.com/osixia/docker-openldap)
+
+A Medium article was posted too, here: https://brightzheng100.medium.com/kubernetes-dex-ldap-integration-f305292a16b9
 
 The overall idea can be illustrated as below:
 
@@ -19,10 +21,91 @@ git clone https://github.com/brightzheng100/kubernetes-dex-ldap-integration.git
 cd kubernetes-dex-ldap-integration
 ```
 
-## Generating TLS PKI files for both Dex and K8s
+## The TL;DR Guide
+
+### Setup
+
+The TD;DR guide uses the script here: [setup.sh](setup.sh), which will:
+1. check the required tools -- there are some of them: `docker`, `git`, `cfssl`, `cfssljson`, `kind`, `kubectl`;
+2. generate the necessary TLS certs/keys for both Kubernetes and Dex;
+3. create `kind`-powered Kubernetes with OIDC configured with Dex;
+4. deploy OpenLDAP in namespace `ldap` as the LDAP Server with some dummy entities;
+5. deploy Dex in namespace `dex`;
+6. create a proxy so that we can access Dex from our laptop (e.g. my MBP)
+
+```sh
+./setup.sh
+```
+
+> Note: the populated dummy LDAP entities, all with password `secret`, include:
+> - `admin1@example.org`
+> - `admin2@example.org`
+> - `developer1@example.org`
+> - `developer2@example.org`
+
+### Use
+
+It's common to set up the kube config, e.g. `~/.kube/config`, for daily use.
+
+For that, we may simply follow these steps:
+
+1. Bind some users, say **"admin1@example.org"**, as the **"cluster-admin"**
+
+    ```sh
+    $ kubectl create clusterrolebinding oidc-cluster-admin \
+      --clusterrole=cluster-admin \
+      --user="admin1@example.org"
+    ```
+
+2. Use [`kubelogin`](https://github.com/int128/kubelogin) plugin to simplify the integration
+
+    ```sh
+    $ echo "127.0.0.1 dex.dex.svc" | sudo tee -a /etc/hosts
+
+    $ SVC_PORT="$(kubectl get -n dex svc/dex -o json | jq '.spec.ports[0].nodePort')"
+    $ kubectl config set-credentials oidc-cluster-admin \
+        --exec-api-version=client.authentication.k8s.io/v1beta1 \
+        --exec-command=kubectl \
+        --exec-arg=oidc-login \
+        --exec-arg=get-token \
+        --exec-arg=--oidc-issuer-url=https://dex.dex.svc:$SVC_PORT \
+        --exec-arg=--oidc-redirect-url-hostname=dex.dex.svc \
+        --exec-arg=--oidc-client-id=example-app \
+        --exec-arg=--oidc-client-secret=ZXhhbXBsZS1hcHAtc2VjcmV0 \
+        --exec-arg=--oidc-extra-scope=email \
+        --exec-arg=--certificate-authority=`pwd`/tls-setup/_certs/ca.pem
+    ```
+
+3. Use the user to access Kubernetes
+
+    ```sh
+    $ kubectl --user=oidc-cluster-admin get nodes
+    ```
+
+    This will prompt us a authentication UI in our default browser, key in the credential of abovementioned LDAP user:
+    - Email Address: `admin1@example.org`
+    - Password: `secret`
+
+    ![screenshot-with-kubelogin](misc/screenshots-with-kubelogin.png)
+
+    It will be authenticated by Dax + LDAP, and once the authentication is done we can see the output like:
+
+    ```
+    $ kubectl --user=oidc-cluster-admin get nodes
+    NAME                             STATUS   ROLES                  AGE     VERSION
+    dex-ldap-cluster-control-plane   Ready    control-plane,master   8m55s   v1.21.1
+    dex-ldap-cluster-worker          Ready    <none>                 8m30s   v1.21.1
+    ```
+
+    > Note: as the login will be cached so the subsequent access will be transparent. And of course, if you want you can set this as the default context so there is no need to explicitly mention the user.
+
+
+## The Step-by-step Guide
+
+### Generating TLS PKI files for both Dex and K8s
 
 > Note: 
-> 1. [`cfssl`](https://github.com/cloudflare/cfssl) is required to generate certs/keys
+> 1. [`cfssl` and `cfssljson`](https://github.com/cloudflare/cfssl/releases) are required to generate certs/keys
 > 2. You may try using [cert-manager](https://github.com/jetstack/cert-manager), if you want
 
 ```sh
@@ -49,19 +132,21 @@ _certs
 0 directories, 9 files
 ```
 
-## Creating Kubernetes cluster with API Server configured
+### Creating Kubernetes cluster with API Server configured
 
 > Note: Here I'm going to use `kind`, you may try any other ways too, like `minikube`, `k3s/k3d`, but the process might have to tune a little bit.
 
 ```sh
+# Make sure we're working from the Git repo's root folder
 cd "$( git rev-parse --show-toplevel )"
 
-PROJECT_ROOT="$(pwd)" envsubst < kind/kind.yaml | kind create cluster --config -
+PROJECT_ROOT="$(pwd)" envsubst < kind/kind.yaml | kind create cluster --name dex-ldap-cluster --config -
 ```
 
-## Deploy OpenLDAP as the LDAP Server
+### Deploying OpenLDAP as the LDAP Server
 
 ```sh
+# Make sure we're working from the Git repo's root folder
 cd "$( git rev-parse --show-toplevel )"
 
 kubectl create ns ldap
@@ -98,9 +183,10 @@ dn: cn=developer1,ou=people,dc=example,dc=org
 dn: cn=developer2,ou=people,dc=example,dc=org
 ```
 
-## Deploying Dex on Kubernetes with LDAP integrated
+### Deploying Dex on Kubernetes with LDAP integrated
 
 ```sh
+# Make sure we're working from the Git repo's root folder
 cd "$( git rev-parse --show-toplevel )"
 
 kubectl create ns dex
@@ -113,7 +199,7 @@ kubectl create secret tls dex-tls \
 kubectl apply --namespace dex -f dex/dex.yaml
 ```
 
-## Enabling proxy to Dex
+### Enabling proxy to Dex
 
 As the Kubernetes is powered by `kind`, we need to do something extra to access the `Dex`.
 
@@ -182,14 +268,16 @@ But the issuer has exposed its URL though domain of `dex.dex.svc`, so we have to
 $ echo "127.0.0.1 dex.dex.svc" | sudo tee -a /etc/hosts
 ```
 
-## Logging into the cluster
+### Logging into the cluster
 
 > Note: 
 > 1. this `example-app` was copied from Dex's repo, [here](https://github.com/dexidp/dex/tree/master/examples/example-app`).
 > 2. I've enabled `go mod` support so the life of playing with it is much easier.
 
 ```sh
+# Make sure we're working from the Git repo's root folder
 cd "$( git rev-parse --show-toplevel )"
+
 cd example-app
 
 go run . \
@@ -212,7 +300,7 @@ The screenshots are captured like this:
 
 ![screenshots](misc/screenshots.png)
 
-## Access Kubernetes by the token retrieved
+### Access Kubernetes by the token retrieved
 
 Now we have the token, let's access it through raw API first:
 
@@ -249,23 +337,26 @@ The good news is that Kubernetes has recognized the login user as `admin1@exampl
 
 Why? It's because there is no permission, by default, granted to a new user like `admin1@example.org`.
 
-## Kubernetes Authorization
+### Kubernetes Authorization
 
 As you may have seen, authentication is delegated to `Dex` but authorization is handled by Kubernetes itself.
 
 ```sh
-$ kubectl apply -f manifests/authorization.yaml
+# Make sure we're working from the Git repo's root folder
+cd "$( git rev-parse --show-toplevel )"
 
-$ kubectl auth can-i --as admin1@example.org -n dex list pods
+kubectl apply -f manifests/authorization.yaml
+
+kubectl auth can-i --as admin1@example.org -n dex list pods
 yes
 
-$ curl -k -s $APISERVER/api/v1/namespaces/dex/pods/ -H "Authorization: Bearer $BEARER_TOKEN" | jq '.items[].metadata.name'
+curl -k -s $APISERVER/api/v1/namespaces/dex/pods/ -H "Authorization: Bearer $BEARER_TOKEN" | jq '.items[].metadata.name'
 "dex-5f97556766-kcfvl"
 ```
 
 Yes! We now can access pods within `dex` namespace, as per the permissions granted.
 
-## Generate `kubeconfig`
+### Generate `kubeconfig`
 
 It's common to generate and distribute such a token by constructing a `kubeconfig` file.
 
@@ -304,7 +395,7 @@ Perfect!
 
 ```sh
 # Delete the kind cluster
-kind delete cluster
+kind delete cluster --name dex-ldap-cluster
 
 # Delete the Socat proxy container
 docker rm -f dex-kind-proxy-32000
