@@ -38,7 +38,7 @@ spec:
     spec:
       serviceAccountName: dex
       containers:
-      - image: quay.io/dexidp/dex:v2.10.0
+      - image: ghcr.io/dexidp/dex:v2.30.0
         name: dex
         command: ["/usr/local/bin/dex", "serve", "/etc/dex/cfg/config.yaml"]
 
@@ -123,6 +123,7 @@ data:
     - id: example-app
       redirectURIs:
       - 'http://127.0.0.1:5555/callback'
+      - 'http://dex.dex.svc:8000'
       name: 'Example App'
       secret: ZXhhbXBsZS1hcHAtc2VjcmV0
 ---
