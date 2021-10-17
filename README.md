@@ -99,7 +99,40 @@ For that, we may simply follow these steps:
 
     > Notes: 
     > - as the login will be cached so the subsequent access will be transparent;
-    > - if you want to change the user, you may remove the cache (`rm -rf ~/.kube/cache/oidc-login/*`) first and you would be prompted again for what user you want to use
+    > - if you want to change the user, you may remove the cache (`rm -rf ~/.kube/cache/oidc-login/*`) first and you would be prompted again for what user you want to use;
+    
+4. (optional) Keep multiple users logged in?
+   
+    So far I haven't found a good way to have multiple users coexist and maintain logged in with `kubelogin`. But we can try generate tokens for different users and set the credentials accordingly:
+
+    ```sh
+    cd example-app
+    go run . --issuer https://dex.dex.svc:32000 --issuer-root-ca `pwd`/../tls-setup/_certs/ca.pem
+    ```
+
+    Then open your browser and navigate to http://127.0.0.1:5555, log into it with the users you want, one at a time to generate different tokens, then add different users with the `ID Token` and `Refresh Token` into your kubeconfig file, e.g `~/.kube/config`, like this:
+
+    ```sh
+    # Add user admin1@example.org as oidc-admin1
+    kubectl config set-credentials oidc-admin1 \
+      --auth-provider=oidc \
+      --auth-provider-arg=idp-issuer-url=https://dex.dex.svc:32000 \
+      --auth-provider-arg=client-id=example-app \
+      --auth-provider-arg=client-secret=ZXhhbXBsZS1hcHAtc2VjcmV0 \
+      --auth-provider-arg=refresh-token=<THE REFRESH TOKEN FOR admin1@example.org> \
+      --auth-provider-arg=idp-certificate-authority=`pwd`/tls-setup/_certs/ca.pem \
+      --auth-provider-arg=id-token=<THE ID TOKEN FOR admin1@example.org>
+
+    # Add user developer1@example.org as oidc-developer1
+    kubectl config set-credentials oidc-developer1 \
+      --auth-provider=oidc \
+      --auth-provider-arg=idp-issuer-url=https://dex.dex.svc:32000 \
+      --auth-provider-arg=client-id=example-app \
+      --auth-provider-arg=client-secret=ZXhhbXBsZS1hcHAtc2VjcmV0 \
+      --auth-provider-arg=refresh-token=<THE REFRESH TOKEN FOR developer1@example.org> \
+      --auth-provider-arg=idp-certificate-authority=`pwd`/tls-setup/_certs/ca.pem \
+      --auth-provider-arg=id-token=<THE ID TOKEN FOR developer1@example.org>
+    ```
 
 
 ## The Step-by-step Guide
