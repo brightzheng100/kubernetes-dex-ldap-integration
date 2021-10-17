@@ -63,7 +63,7 @@ For that, we may simply follow these steps:
     $ echo "127.0.0.1 dex.dex.svc" | sudo tee -a /etc/hosts
 
     $ SVC_PORT="$(kubectl get -n dex svc/dex -o json | jq '.spec.ports[0].nodePort')"
-    $ kubectl config set-credentials oidc-cluster-admin \
+    $ kubectl config set-credentials oidc \
         --exec-api-version=client.authentication.k8s.io/v1beta1 \
         --exec-command=kubectl \
         --exec-arg=oidc-login \
@@ -79,7 +79,7 @@ For that, we may simply follow these steps:
 3. Use the user to access Kubernetes
 
     ```sh
-    $ kubectl --user=oidc-cluster-admin get nodes
+    $ kubectl --user=oidc get nodes
     ```
 
     This will prompt us a authentication UI in our default browser, key in the credential of abovementioned LDAP user:
@@ -91,13 +91,15 @@ For that, we may simply follow these steps:
     It will be authenticated by Dax + LDAP, and once the authentication is done we can see the output like:
 
     ```
-    $ kubectl --user=oidc-cluster-admin get nodes
+    $ kubectl --user=oidc get nodes
     NAME                             STATUS   ROLES                  AGE     VERSION
     dex-ldap-cluster-control-plane   Ready    control-plane,master   8m55s   v1.21.1
     dex-ldap-cluster-worker          Ready    <none>                 8m30s   v1.21.1
     ```
 
-    > Note: as the login will be cached so the subsequent access will be transparent. And of course, if you want you can set this as the default context so there is no need to explicitly mention the user.
+    > Notes: 
+    > - as the login will be cached so the subsequent access will be transparent;
+    > - if you want to change the user, you may remove the cache (`rm -rf ~/.kube/cache/oidc-login/*`) first and you would be prompted again for what user you want to use
 
 
 ## The Step-by-step Guide
