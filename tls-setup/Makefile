@@ -1,31 +1,30 @@
-.PHONY: cfssl ca req-dex req-k8s clean
+.PHONY: cfssl cfssljson ca req-dex req-k8s clean
 
-CFSSL	= @env PATH=$(GOPATH)/bin:$(PATH) cfssl
-JSON	= env PATH=$(GOPATH)/bin:$(PATH) cfssljson
-
-all: cfssl ca req-dex req-k8s
+all: cfssl cfssljson ca req-dex req-k8s
 
 cfssl:
-	go get -u -tags nopkcs11 github.com/cloudflare/cfssl/cmd/cfssl
-	go get -u github.com/cloudflare/cfssl/cmd/cfssljson
+	go install github.com/cloudflare/cfssl/cmd/cfssl@v1.6.4
 
-ca:
+cfssljson:
+	go install github.com/cloudflare/cfssl/cmd/cfssljson@v1.6.4
+
+ca: cfssl cfssljson
 	mkdir -p _certs
-	$(CFSSL) gencert -initca ca-csr.json | $(JSON) -bare _certs/ca
+	cfssl gencert -initca ca-csr.json | cfssljson -bare _certs/ca
 
-req-dex:
-	$(CFSSL) gencert \
+req-dex: cfssl cfssljson
+	cfssl gencert \
 	  -ca _certs/ca.pem \
 	  -ca-key _certs/ca-key.pem \
 	  -config ca-config.json \
-	  req-csr-dex.json | $(JSON) -bare _certs/dex
+	  req-csr-dex.json | cfssljson -bare _certs/dex
 
-req-k8s:
-	$(CFSSL) gencert \
+req-k8s: cfssl cfssljson
+	cfssl gencert \
 	  -ca _certs/ca.pem \
 	  -ca-key _certs/ca-key.pem \
 	  -config ca-config.json \
-	  req-csr-k8s.json | $(JSON) -bare _certs/k8s
+	  req-csr-k8s.json | cfssljson -bare _certs/k8s
 
 clean:
 	rm -rf _certs
