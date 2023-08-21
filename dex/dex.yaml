@@ -123,7 +123,6 @@ data:
     - id: example-app
       redirectURIs:
       - 'http://127.0.0.1:5555/callback'
-      - 'http://dex.dex.svc:8000'
       name: 'Example App'
       secret: ZXhhbXBsZS1hcHAtc2VjcmV0
 ---
